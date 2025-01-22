@@ -1,17 +1,28 @@
-import { useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import Login from "./pages/Login";
+import MarkdownPreview from "./pages/MarkdownPreview";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const App = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Initialize auth state from localStorage
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return localStorage.getItem("isAuthenticated") === "true";
+  });
 
   const handleAuthentication = (status: boolean) => {
     setIsAuthenticated(status);
+    localStorage.setItem("isAuthenticated", status.toString());
   };
+
+  // Optionally: Check authentication on component mount
+  useEffect(() => {
+    const authStatus = localStorage.getItem("isAuthenticated") === "true";
+    setIsAuthenticated(authStatus);
+  }, []);
 
   const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     if (!isAuthenticated) {
@@ -25,7 +36,13 @@ const App = () => {
       <Routes>
         <Route
           path="/login"
-          element={<Login onLoginSuccess={() => handleAuthentication(true)} />}
+          element={
+            isAuthenticated ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <Login onLoginSuccess={() => handleAuthentication(true)} />
+            )
+          }
         />
 
         <Route
@@ -34,6 +51,13 @@ const App = () => {
             <ProtectedRoute>
               <div className="p-8">
                 <h1 className="text-2xl font-bold">Dashboard</h1>
+                <p className="mt-4">Welcome to the dashboard!</p>
+                <a
+                  href="/md"
+                  className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+                >
+                  Go to Markdown Preview
+                </a>
                 <button
                   onClick={() => handleAuthentication(false)}
                   className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
@@ -41,6 +65,15 @@ const App = () => {
                   Logout
                 </button>
               </div>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/md"
+          element={
+            <ProtectedRoute>
+              <MarkdownPreview />
             </ProtectedRoute>
           }
         />
