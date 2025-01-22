@@ -39,7 +39,7 @@ type UploadPostReqBody = {
 
 const MarkdownPreview = () => {
   const [markdown, setMarkdown] = useState(defaultMarkdown);
-  const token = import.meta.env.REACT_APP_GITHUB_TOKEN ?? "not found";
+  const token = import.meta.env.VITE_REACT_APP_GITHUB_TOKEN ?? "not found";
 
   // Configure marked options
   marked.setOptions(options);
