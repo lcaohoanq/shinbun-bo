@@ -9,34 +9,15 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  Button,
+  Box,
 } from "@mui/material";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
-
-const defaultMarkdown = `# React Markdown Previewer!
-
-## This is a sub-heading...
-    
-Or... wait for it... **_both!_**
-  
-And feel free to go crazy ~~crossing stuff out~~.
-      
-There's also [links](https://www.example.com), and
-> Block Quotes!
-     
-\`\`\`javascript
-// Code blocks too!
-function example() {
-  return 'hello world';
-}
-\`\`\`
-    
-- And of course there are lists
-  - Some are bulleted
-     - With different indentation levels
-        - Like this one
-`;
+import { defaultMarkdown } from "../contents/example";
+import axios from "axios";
+import { Base64 } from "js-base64";
 
 interface ExtendedMarkedOptions extends MarkedOptions {
   highlight?: (code: string, lang: string) => string;
@@ -51,17 +32,46 @@ const options: ExtendedMarkedOptions = {
   },
 };
 
+type UploadPostReqBody = {
+  message: string;
+  content: string;
+};
+
 const MarkdownPreview = () => {
   const [markdown, setMarkdown] = useState(defaultMarkdown);
+  const token = import.meta.env.REACT_APP_GITHUB_TOKEN ?? "not found";
 
   // Configure marked options
   marked.setOptions(options);
+  console.log("token", token);
+
+  const uploadPost = async (markdown: string) => {
+    const confirm = window.confirm(
+      "Are you sure you want to upload this post?"
+    );
+    if (!confirm) return;
+
+    await axios.put<UploadPostReqBody>(
+      `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/hihi.md`,
+      {
+        message: "Add new post",
+        content: Base64.encode(markdown),
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+  };
 
   useEffect(() => {
     // Syntax highlight all code blocks after rendering
     document.querySelectorAll("pre code").forEach((block) => {
       hljs.highlightElement(block as HTMLElement);
     });
+
+    console.log("markdown", markdown);
   }, [markdown]);
 
   return (
@@ -73,7 +83,7 @@ const MarkdownPreview = () => {
           </Typography>
           <IconButton
             color="inherit"
-            href="https://github.com/yourusername"
+            href="https://github.com/lcaohoanq"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -123,6 +133,17 @@ const MarkdownPreview = () => {
             </Paper>
           </Grid>
         </Grid>
+
+        <Box mt={2}>
+          <Button
+            variant="contained"
+            color="success"
+            style={{ float: "right" }}
+            onClick={() => uploadPost(markdown)}
+          >
+            Upload Post
+          </Button>
+        </Box>
       </Container>
     </div>
   );
