@@ -9,6 +9,7 @@ import {
   Alert,
 } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import { env } from "../environments/utils";
 
 interface LoginProps {
   onLoginSuccess: () => void;
@@ -21,7 +22,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
   const navigate = useNavigate();
 
   const handleLogin = () => {
-    if (username === "admin" && password === "admin") {
+    if (username === env.username && password === env.password) {
       onLoginSuccess();
       navigate("/dashboard");
     } else {
