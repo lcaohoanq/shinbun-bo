@@ -18,6 +18,7 @@ import "highlight.js/styles/github.css";
 import { defaultMarkdown } from "../contents/example";
 import axios from "axios";
 import { Base64 } from "js-base64";
+import { GITHUB_TOKEN } from "../environments/utils";
 
 interface ExtendedMarkedOptions extends MarkedOptions {
   highlight?: (code: string, lang: string) => string;
@@ -39,11 +40,9 @@ type UploadPostReqBody = {
 
 const MarkdownPreview = () => {
   const [markdown, setMarkdown] = useState(defaultMarkdown);
-  const token = import.meta.env.VITE_REACT_APP_GITHUB_TOKEN ?? "not found";
 
   // Configure marked options
   marked.setOptions(options);
-  console.log("token", token);
 
   const uploadPost = async (markdown: string) => {
     const confirm = window.confirm(
@@ -51,18 +50,26 @@ const MarkdownPreview = () => {
     );
     if (!confirm) return;
 
-    await axios.put<UploadPostReqBody>(
-      `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/hihi.md`,
-      {
-        message: "Add new post",
-        content: Base64.encode(markdown),
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
+    try {
+      const res = await axios.put<UploadPostReqBody>(
+        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/hihi.md`,
+        {
+          message: "Add new post",
+          content: Base64.encode(markdown),
         },
+        {
+          headers: {
+            Authorization: `Bearer ${GITHUB_TOKEN}`,
+          },
+        }
+      );
+
+      if (res.status === 201) {
+        window.alert("Add new post success");
       }
-    );
+    } catch (err) {
+      console.log(err);
+    }
   };
 
   useEffect(() => {

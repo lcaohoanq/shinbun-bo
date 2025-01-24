@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import DashBoard from "./pages/DashBoard";
 import Login from "./pages/Login";
 import MarkdownPreview from "./pages/MarkdownPreview";
 
@@ -49,22 +50,7 @@ const App = () => {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <div className="p-8">
-                <h1 className="text-2xl font-bold">Dashboard</h1>
-                <p className="mt-4">Welcome to the dashboard!</p>
-                <Link
-                  to="/md"
-                  className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
-                >
-                  Go to Markdown Preview
-                </Link>
-                <button
-                  onClick={() => handleAuthentication(false)}
-                  className="mt-4 bg-red-500 text-white px-4 py-2 rounded"
-                >
-                  Logout
-                </button>
-              </div>
+              <DashBoard handleAuthentication={handleAuthentication} />
             </ProtectedRoute>
           }
         />
