@@ -19,6 +19,7 @@ import { defaultMarkdown } from "../contents/example";
 import axios from "axios";
 import { Base64 } from "js-base64";
 import { GITHUB_TOKEN } from "../environments/utils";
+import { useLocation } from "react-router-dom";
 
 interface ExtendedMarkedOptions extends MarkedOptions {
   highlight?: (code: string, lang: string) => string;
@@ -39,7 +40,10 @@ type UploadPostReqBody = {
 };
 
 const MarkdownPreview = () => {
-  const [markdown, setMarkdown] = useState(defaultMarkdown);
+  const location = useLocation();
+  const initialMarkdown = location.state?.markdown || defaultMarkdown; // Get the passed markdown content
+
+  const [markdown, setMarkdown] = useState(initialMarkdown);
 
   // Configure marked options
   marked.setOptions(options);

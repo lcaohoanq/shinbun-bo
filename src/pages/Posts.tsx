@@ -1,22 +1,24 @@
 import {
   Button,
+  Paper,
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
   TableRow,
-  TableContainer,
-  Paper,
 } from "@mui/material";
 import axios from "axios";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import LoadingComponent from "../components/LoadingComponent";
 import { GITHUB_TOKEN } from "../environments/utils";
 import { PostDetail, PostList } from "../types/post.type";
-import LoadingComponent from "../components/LoadingComponent";
 
 const Posts = () => {
   const [postList, setPostList] = useState<PostList>([]); // Initialize with an empty array
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate(); // Initialize navigation
 
   const getPostList = async () => {
     try {
@@ -60,6 +62,25 @@ const Posts = () => {
       );
       if (res.status === 200) {
         console.log("Delete success");
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  const handleEditPost = async (post: PostDetail) => {
+    try {
+      // Use the raw GitHub URL directly
+      const res = await axios.get(
+        `https://raw.githubusercontent.com/lcaohoanq/shinbun/main/src/content/posts/${post.name}`
+      );
+
+      if (res.status === 200) {
+        // No need for Base64 decoding
+        const markdownContent = res.data;
+
+        // Navigate to the MarkdownPreview page and pass the content
+        navigate("/md", { state: { markdown: markdownContent } });
       }
     } catch (err) {
       console.log(err);
@@ -124,15 +145,7 @@ const Posts = () => {
                           </Button>
                         </TableCell>
                       ) : (
-                        <TableCell align="center">
-                          <Button
-                            variant="contained"
-                            color="warning"
-                            style={{ margin: "5px" }}
-                          >
-                            Is not a page
-                          </Button>
-                        </TableCell>
+                        <TableCell align="center"></TableCell>
                       )}
                       <TableCell align="center">
                         <Button
@@ -140,7 +153,7 @@ const Posts = () => {
                           color="info"
                           style={{ margin: "5px" }}
                           onClick={() => {
-                            console.log("first");
+                            handleEditPost(post);
                           }}
                         >
                           Edit
