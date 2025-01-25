@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import DashBoard from "./pages/DashBoard";
+import DashBoard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import MarkdownPreview from "./pages/MarkdownPreview";
 
@@ -56,7 +56,7 @@ const App = () => {
         />
 
         <Route
-          path="/md"
+          path="/posts/:postTitle"
           element={
             <ProtectedRoute>
               <MarkdownPreview />

@@ -1,25 +1,28 @@
-import { useEffect, useState } from "react";
-import { marked, MarkedOptions } from "marked";
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Grid,
-  AppBar,
-  Toolbar,
-  IconButton,
-  Button,
-  Box,
-} from "@mui/material";
 import GitHubIcon from "@mui/icons-material/GitHub";
+import {
+  AppBar,
+  Box,
+  Button,
+  Container,
+  Grid,
+  IconButton,
+  Paper,
+  TextField,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import { useMutation } from "@tanstack/react-query";
+import axios from "axios";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
-import { defaultMarkdown } from "../contents/example";
-import axios from "axios";
 import { Base64 } from "js-base64";
+import { marked, MarkedOptions } from "marked";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import NavigateButton from "../components/NavigateButton";
+import { defaultMarkdown } from "../contents/example";
 import { GITHUB_TOKEN } from "../environments/utils";
-import { useLocation } from "react-router-dom";
+import { PostContent } from "../types/post.type";
 
 interface ExtendedMarkedOptions extends MarkedOptions {
   highlight?: (code: string, lang: string) => string;
@@ -34,32 +37,61 @@ const options: ExtendedMarkedOptions = {
   },
 };
 
-type UploadPostReqBody = {
-  message: string;
-  content: string;
-};
-
 const MarkdownPreview = () => {
+  const { postTitle } = useParams(); // Extract title from URL
   const location = useLocation();
-  const initialMarkdown = location.state?.markdown || defaultMarkdown; // Get the passed markdown content
+  const navigate = useNavigate();
+  const [postContent, setPostContent] = useState<PostContent>();
 
+  // Extract initial markdown and SHA from location state if available
+  const {
+    markdown: initialMarkdown = defaultMarkdown,
+    title: initialTitle = postTitle || "", // Use the URL title or fall back to the initialTitle
+    sha: postSha,
+  } = location.state || {};
+
+  // Set title and markdown state
   const [markdown, setMarkdown] = useState(initialMarkdown);
+  const [title, setTitle] = useState<string>(initialTitle);
 
-  // Configure marked options
+  const getPostMeta = async () => {
+    try {
+      const res = await axios.get<PostContent>(
+        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${postTitle}.md`
+      );
+      setPostContent(res.data);
+      return res.data;
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  // Set title only once when initialTitle is available
+  useEffect(() => {
+    if (initialTitle) {
+      setTitle(initialTitle); // Use the passed title if editing
+    }
+    getPostMeta();
+  }, [initialTitle]);
+
   marked.setOptions(options);
 
-  const uploadPost = async (markdown: string) => {
-    const confirm = window.confirm(
-      "Are you sure you want to upload this post?"
-    );
-    if (!confirm) return;
-
-    try {
-      const res = await axios.put<UploadPostReqBody>(
-        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/hihi.md`,
+  const uploadPostMutation = useMutation({
+    mutationFn: async ({
+      title,
+      markdown,
+      sha,
+    }: {
+      title: string;
+      markdown: string;
+      sha?: string; // Optional SHA for edit
+    }) => {
+      const res = await axios.put(
+        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${title}.md`,
         {
-          message: "Add new post",
+          message: sha ? `Update post: ${title}` : `Add new post: ${title}`,
           content: Base64.encode(markdown),
+          sha: postContent?.sha, // Include the sha if we're updating an existing post
         },
         {
           headers: {
@@ -67,34 +99,41 @@ const MarkdownPreview = () => {
           },
         }
       );
+      return res.data;
+    },
+    onSuccess: () => {
+      navigate("/dashboard");
+    },
+    onError: (error) => {
+      console.error("Upload failed", error);
+    },
+  });
 
-      if (res.status === 201) {
-        window.alert("Add new post success");
-      }
-    } catch (err) {
-      console.log(err);
-    }
+  const handleUpload = () => {
+    uploadPostMutation.mutate({
+      title,
+      markdown,
+      sha: postSha, // Pass the SHA for editing, undefined for creating new
+    });
   };
 
   useEffect(() => {
-    // Syntax highlight all code blocks after rendering
     document.querySelectorAll("pre code").forEach((block) => {
       hljs.highlightElement(block as HTMLElement);
     });
-
-    console.log("markdown", markdown);
   }, [markdown]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <AppBar position="static" className="mb-8">
         <Toolbar>
+          <NavigateButton to="/dashboard" />
           <Typography variant="h6" className="flex-grow">
             Markdown Previewer
           </Typography>
           <IconButton
             color="inherit"
-            href="https://github.com/lcaohoanq"
+            href="https://github.com/lcaohoanq/shinbun"
             target="_blank"
             rel="noopener noreferrer"
           >
@@ -103,7 +142,27 @@ const MarkdownPreview = () => {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" className="mt-8">
+      <Container maxWidth={false} className="mt-8">
+        <Box className="flex gap-3 mb-3">
+          <TextField
+            fullWidth
+            label="Post Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            variant="outlined"
+            className="mb-4"
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            style={{ float: "right" }}
+            onClick={handleUpload}
+            disabled={uploadPostMutation.isPending}
+          >
+            {uploadPostMutation.isPending ? "Uploading..." : "Upload"}
+          </Button>
+        </Box>
+
         <Grid container spacing={4}>
           <Grid item xs={12} md={6}>
             <Paper elevation={3} className="h-full">
@@ -136,25 +195,12 @@ const MarkdownPreview = () => {
                 Preview
               </Typography>
               <div
-                className="prose max-w-none p-6 h-[calc(100vh-250px)] overflow-auto"
-                dangerouslySetInnerHTML={{
-                  __html: marked(markdown),
-                }}
+                className="markdown-body p-4"
+                dangerouslySetInnerHTML={{ __html: marked(markdown) }}
               />
             </Paper>
           </Grid>
         </Grid>
-
-        <Box mt={2}>
-          <Button
-            variant="contained"
-            color="success"
-            style={{ float: "right" }}
-            onClick={() => uploadPost(markdown)}
-          >
-            Upload Post
-          </Button>
-        </Box>
       </Container>
     </div>
   );

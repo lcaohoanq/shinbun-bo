@@ -7,6 +7,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Typography,
 } from "@mui/material";
 import axios from "axios";
 import { useEffect, useState } from "react";
@@ -80,7 +81,9 @@ const Posts = () => {
         const markdownContent = res.data;
 
         // Navigate to the MarkdownPreview page and pass the content
-        navigate("/md", { state: { markdown: markdownContent } });
+        navigate(`/posts/${post.name.slice(0, -3)}`, {
+          state: { markdown: markdownContent },
+        });
       }
     } catch (err) {
       console.log(err);
@@ -93,12 +96,11 @@ const Posts = () => {
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mt-8 mb-3">All My Posts</h2>
       {isLoading ? (
         <LoadingComponent />
       ) : (
         <>
-          <h2>Total: {postList?.length} posts</h2>
+          <Typography variant="h6">Total: {postList?.length} posts</Typography>
           {postList.length > 0 ? (
             <TableContainer component={Paper} style={{ marginTop: "20px" }}>
               <Table>
@@ -111,13 +113,13 @@ const Posts = () => {
                       <strong>View Details</strong>
                     </TableCell>
                     <TableCell align="center">
-                      <strong>Edit</strong>
+                      <strong>Live Edit</strong>
                     </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {postList.map((post: PostDetail) => (
-                    <TableRow key={post.sha}>
+                  {postList.map((post: PostDetail, index) => (
+                    <TableRow key={post.sha || index}>
                       <TableCell>
                         <a
                           href={post.html_url}
@@ -147,17 +149,17 @@ const Posts = () => {
                       ) : (
                         <TableCell align="center"></TableCell>
                       )}
-                      <TableCell align="center">
-                        <Button
-                          variant="contained"
-                          color="info"
-                          style={{ margin: "5px" }}
-                          onClick={() => {
-                            handleEditPost(post);
-                          }}
-                        >
-                          Edit
-                        </Button>
+                      <TableCell>
+                        {post.name.includes(".md") && (
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            style={{ textTransform: "none" }}
+                            onClick={() => handleEditPost(post)}
+                          >
+                            Edit
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell align="center">
                         <Button
