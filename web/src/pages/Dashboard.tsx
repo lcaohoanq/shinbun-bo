@@ -10,7 +10,7 @@ interface DashBoardProps {
 const DashBoard: React.FC<DashBoardProps> = ({ handleAuthentication }) => {
   return (
     <div className="p-8">
-      <Typography variant="h4" className="text-center">
+      <Typography variant="h4" className="text-center text-black">
         Post Management
       </Typography>
       <div className="flex justify-end gap-3">
