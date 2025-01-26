@@ -94,6 +94,8 @@ const MarkdownPreview = () => {
   const [title, setTitle] = useState<string>(initialTitle);
 
   const getPostMeta = async () => {
+    if (postTitle === "new") return;
+
     try {
       const res = await axios.get<PostContent>(
         `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${postTitle}.md`
@@ -149,7 +151,7 @@ const MarkdownPreview = () => {
 
   const handleUpload = () => {
     uploadPostMutation.mutate({
-      title,
+      title: title.trim(),
       markdown,
       sha: postSha,
     });

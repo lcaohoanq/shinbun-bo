@@ -14,7 +14,10 @@ const DashBoard: React.FC<DashBoardProps> = ({ handleAuthentication }) => {
         Post Management
       </Typography>
       <div className="flex justify-end gap-3">
-        <Link to="/md" className="bg-blue-500 px-4 py-2 rounded font-bold">
+        <Link
+          to="/posts/new"
+          className="bg-blue-500 px-4 py-2 rounded font-bold"
+        >
           Create New Post
         </Link>
         <Button
