@@ -17,7 +17,7 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import { Base64 } from "js-base64";
 import { marked, MarkedOptions } from "marked";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import NavigateButton from "../components/NavigateButton";
 import { defaultMarkdown } from "../contents/example";
@@ -32,25 +32,64 @@ const options: ExtendedMarkedOptions = {
   breaks: true,
   gfm: true,
   highlight: function (code, lang) {
-    // Use highlight.js for syntax highlighting
     return hljs.highlight(lang, code).value;
   },
 };
 
 const MarkdownPreview = () => {
-  const { postTitle } = useParams(); // Extract title from URL
+  const { postTitle } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [postContent, setPostContent] = useState<PostContent>();
 
-  // Extract initial markdown and SHA from location state if available
+  const inputRef = useRef(null);
+  const previewRef = useRef(null);
+  const isTyping = useRef(false); // New flag to prevent scroll during typing
+
+  const handleScroll = (
+    sourceRef: React.RefObject<HTMLElement>,
+    targetRef: React.RefObject<HTMLElement>
+  ) => {
+    if (isTyping.current) return; // Prevent syncing scroll during typing
+
+    const sourceScrollElement =
+      sourceRef.current?.querySelector("textarea") || sourceRef.current;
+    const targetScrollElement = targetRef.current;
+
+    if (sourceScrollElement && targetScrollElement) {
+      const sourceScrollTop = sourceScrollElement.scrollTop;
+      const sourceScrollHeight = sourceScrollElement.scrollHeight;
+      const sourceClientHeight = sourceScrollElement.clientHeight;
+
+      const targetScrollHeight = targetScrollElement.scrollHeight;
+      const targetClientHeight = targetScrollElement.clientHeight;
+
+      if (
+        sourceScrollTop > 0 &&
+        sourceScrollTop < sourceScrollHeight - sourceClientHeight
+      ) {
+        const scrollPercentage =
+          sourceScrollTop / (sourceScrollHeight - sourceClientHeight);
+
+        targetScrollElement.scrollTop =
+          scrollPercentage * (targetScrollHeight - targetClientHeight);
+      }
+    }
+  };
+
+  const syncScrollOnInput = () => {
+    isTyping.current = true;
+    setTimeout(() => {
+      isTyping.current = false; // Allow scroll sync after typing is done
+    }, 100);
+  };
+
   const {
     markdown: initialMarkdown = defaultMarkdown,
-    title: initialTitle = postTitle || "", // Use the URL title or fall back to the initialTitle
+    title: initialTitle = postTitle || "",
     sha: postSha,
   } = location.state || {};
 
-  // Set title and markdown state
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [title, setTitle] = useState<string>(initialTitle);
 
@@ -66,10 +105,9 @@ const MarkdownPreview = () => {
     }
   };
 
-  // Set title only once when initialTitle is available
   useEffect(() => {
     if (initialTitle) {
-      setTitle(initialTitle); // Use the passed title if editing
+      setTitle(initialTitle);
     }
     getPostMeta();
   }, [initialTitle]);
@@ -84,14 +122,14 @@ const MarkdownPreview = () => {
     }: {
       title: string;
       markdown: string;
-      sha?: string; // Optional SHA for edit
+      sha?: string;
     }) => {
       const res = await axios.put(
         `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${title}.md`,
         {
           message: sha ? `Update post: ${title}` : `Add new post: ${title}`,
           content: Base64.encode(markdown),
-          sha: postContent?.sha, // Include the sha if we're updating an existing post
+          sha: postContent?.sha,
         },
         {
           headers: {
@@ -113,7 +151,7 @@ const MarkdownPreview = () => {
     uploadPostMutation.mutate({
       title,
       markdown,
-      sha: postSha, // Pass the SHA for editing, undefined for creating new
+      sha: postSha,
     });
   };
 
@@ -170,11 +208,14 @@ const MarkdownPreview = () => {
                 Markdown Input
               </Typography>
               <TextField
+                inputRef={inputRef}
                 multiline
                 fullWidth
                 variant="outlined"
                 value={markdown}
                 onChange={(e) => setMarkdown(e.target.value)}
+                onKeyDown={syncScrollOnInput} // Track typing events
+                onScroll={() => handleScroll(inputRef, previewRef)} // Sync scroll manually
                 className="h-[calc(100vh-250px)]"
                 InputProps={{
                   className: "h-full",
@@ -195,7 +236,8 @@ const MarkdownPreview = () => {
                 Preview
               </Typography>
               <div
-                className="markdown-body p-4"
+                ref={previewRef}
+                className="markdown-body p-4 h-[calc(100vh-250px)] overflow-y-auto"
                 dangerouslySetInnerHTML={{ __html: marked(markdown) }}
               />
             </Paper>
