@@ -12,13 +12,13 @@ import {
   Typography,
 } from "@mui/material";
 import { useMutation } from "@tanstack/react-query";
-import axios from "axios";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import { Base64 } from "js-base64";
 import { marked, MarkedOptions } from "marked";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { githubApi } from "../api";
 import NavigateButton from "../components/NavigateButton";
 import { defaultMarkdown } from "../contents/example";
 import { GITHUB_TOKEN } from "../environments/utils";
@@ -97,8 +97,8 @@ const MarkdownPreview = () => {
     if (postTitle === "new") return;
 
     try {
-      const res = await axios.get<PostContent>(
-        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${postTitle}.md`
+      const res = await githubApi.get<PostContent>(
+        `/contents/src/content/posts/${postTitle}.md`
       );
       setPostContent(res.data);
       return res.data;
@@ -126,8 +126,8 @@ const MarkdownPreview = () => {
       markdown: string;
       sha?: string;
     }) => {
-      const res = await axios.put(
-        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${title}.md`,
+      const res = await githubApi.put(
+        `/contents/src/content/posts/${title}.md`,
         {
           message: sha ? `Update post: ${title}` : `Add new post: ${title}`,
           content: Base64.encode(markdown),

@@ -17,170 +17,203 @@ import {
   useTheme,
 } from "@mui/material";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import LoadingComponent from "../components/LoadingComponent";
-import { GITHUB_TOKEN } from "../environments/utils";
 import { PostDetail, PostList } from "../types/post.type";
+import { githubApi } from "../api";
+
+// Cache for markdown content
+const markdownCache = new Map<string, string>();
 
 const Posts = () => {
   const [postList, setPostList] = useState<PostList>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<PostDetail | null>(null);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
-  const getPostList = async () => {
+  // Memoize the base URL for post viewing
+  const baseViewUrl = useMemo(() => "https://shinbun.vercel.app/posts/", []);
+
+  const getPostList = useCallback(async () => {
     try {
-      const response = await axios.get<PostList>(
-        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts`,
-        {
-          headers: {
-            Authorization: `Bearer ${GITHUB_TOKEN}`,
-          },
-        }
+      setError(null);
+      const response = await githubApi.get<PostList>(
+        "/contents/src/content/posts"
       );
       if (response.status === 200) {
         setPostList(response.data);
       }
     } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to fetch posts";
+      setError(errorMessage);
       console.error("Failed to fetch posts", err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!confirmDelete) return;
 
     try {
-      const res = await axios.delete(
-        `https://api.github.com/repos/lcaohoanq/shinbun/contents/src/content/posts/${confirmDelete.name}`,
+      setError(null);
+      const response = await githubApi.delete(
+        `/contents/src/content/posts/${confirmDelete.name}`,
         {
-          headers: {
-            Authorization: `Bearer ${GITHUB_TOKEN}`,
-          },
           data: {
             message: `Deleting post ${confirmDelete.name.slice(0, -3)}`,
             sha: confirmDelete.sha,
           },
         }
       );
-      if (res.status === 200) {
-        setPostList(postList.filter((post) => post.sha !== confirmDelete.sha));
-        setConfirmDelete(null);
+
+      if (response.status === 200) {
+        setPostList((prev) =>
+          prev.filter((post) => post.sha !== confirmDelete.sha)
+        );
+        // Clear cache for deleted post
+        markdownCache.delete(confirmDelete.name);
       }
     } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to delete post";
+      setError(errorMessage);
       console.error("Delete failed", err);
+    } finally {
+      setConfirmDelete(null);
     }
-  };
+  }, [confirmDelete]);
 
-  const handleEditPost = async (post: PostDetail) => {
-    try {
-      const res = await axios.get(
-        `https://raw.githubusercontent.com/lcaohoanq/shinbun/main/src/content/posts/${post.name}`
-      );
+  const handleEditPost = useCallback(
+    async (post: PostDetail) => {
+      try {
+        setError(null);
 
-      if (res.status === 200) {
-        const markdownContent = res.data;
-        navigate(`/posts/${post.name.slice(0, -3)}`, {
-          state: { markdown: markdownContent },
-        });
+        // Check cache first
+        let markdownContent = markdownCache.get(post.name) as string;
+
+        if (!markdownContent) {
+          const response = await axios.get(
+            `https://raw.githubusercontent.com/lcaohoanq/shinbun/main/src/content/posts/${post.name}`
+          );
+
+          if (response.status === 200) {
+            markdownContent = response.data;
+            // Cache the content
+            markdownCache.set(post.name, markdownContent);
+          }
+        }
+
+        if (markdownContent) {
+          navigate(`/posts/${post.name.slice(0, -3)}`, {
+            state: { markdown: markdownContent },
+          });
+        }
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to edit post";
+        setError(errorMessage);
+        console.error("Edit failed", err);
       }
-    } catch (err) {
-      console.error("Edit failed", err);
-    }
-  };
+    },
+    [navigate]
+  );
+
+  // Memoize post actions renderer to prevent unnecessary re-renders
+  const renderPostActions = useCallback(
+    (post: PostDetail) => {
+      const postNameWithoutExt = post.name.slice(0, -3);
+      const isMarkdown = post.name.includes(".md");
+
+      if (isMobile) {
+        return (
+          <Box display="flex" flexDirection="column" gap={1}>
+            {isMarkdown && (
+              <>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="success"
+                  href={`${baseViewUrl}${postNameWithoutExt}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View
+                </Button>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="primary"
+                  onClick={() => handleEditPost(post)}
+                >
+                  Edit
+                </Button>
+              </>
+            )}
+            <Button
+              fullWidth
+              variant="contained"
+              color="error"
+              onClick={() => setConfirmDelete(post)}
+            >
+              Delete
+            </Button>
+          </Box>
+        );
+      }
+
+      return (
+        <>
+          {isMarkdown && (
+            <>
+              <TableCell align="center">
+                <Button
+                  variant="contained"
+                  color="success"
+                  href={`${baseViewUrl}${postNameWithoutExt}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View
+                </Button>
+              </TableCell>
+              <TableCell>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={() => handleEditPost(post)}
+                >
+                  Edit
+                </Button>
+              </TableCell>
+            </>
+          )}
+          <TableCell align="center">
+            <Button
+              variant="contained"
+              color="error"
+              onClick={() => setConfirmDelete(post)}
+            >
+              Delete
+            </Button>
+          </TableCell>
+        </>
+      );
+    },
+    [isMobile, baseViewUrl, handleEditPost]
+  );
 
   useEffect(() => {
     getPostList();
-  }, []);
-
-  const renderPostActions = (post: PostDetail) => {
-    if (isMobile) {
-      return (
-        <Box display="flex" flexDirection="column" gap={1}>
-          {post.name.includes(".md") && (
-            <>
-              <Button
-                fullWidth
-                variant="contained"
-                color="success"
-                href={`https://shinbun.vercel.app/posts/${post.name.slice(
-                  0,
-                  -3
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View
-              </Button>
-              <Button
-                fullWidth
-                variant="contained"
-                color="primary"
-                onClick={() => handleEditPost(post)}
-              >
-                Edit
-              </Button>
-            </>
-          )}
-          <Button
-            fullWidth
-            variant="contained"
-            color="error"
-            onClick={() => setConfirmDelete(post)}
-          >
-            Delete
-          </Button>
-        </Box>
-      );
-    }
-
-    return (
-      <>
-        {post.name.includes(".md") && (
-          <>
-            <TableCell align="center">
-              <Button
-                variant="contained"
-                color="success"
-                href={`https://shinbun.vercel.app/posts/${post.name.slice(
-                  0,
-                  -3
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                View
-              </Button>
-            </TableCell>
-            <TableCell>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => handleEditPost(post)}
-              >
-                Edit
-              </Button>
-            </TableCell>
-          </>
-        )}
-        <TableCell align="center">
-          <Button
-            variant="contained"
-            color="error"
-            onClick={() => setConfirmDelete(post)}
-          >
-            Delete
-          </Button>
-        </TableCell>
-      </>
-    );
-  };
+  }, [getPostList]);
 
   if (isLoading) return <LoadingComponent />;
+  if (error) return <Typography color="error">{error}</Typography>;
 
   return (
     <Box
