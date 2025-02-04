@@ -12,6 +12,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
   Typography,
   useMediaQuery,
   useTheme,
@@ -124,6 +125,21 @@ const Posts = () => {
     [navigate]
   );
 
+  const handleSearch = useCallback(
+    (searchTerm: string) => {
+      if (!searchTerm) {
+        getPostList();
+        return;
+      }
+
+      const filteredPosts = postList.filter((post) =>
+        post.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setPostList(filteredPosts);
+    },
+    [getPostList, postList]
+  );
+
   // Memoize post actions renderer to prevent unnecessary re-renders
   const renderPostActions = useCallback(
     (post: PostDetail) => {
@@ -223,11 +239,20 @@ const Posts = () => {
         overflowX: "auto",
       }}
     >
+      <TextField
+        placeholder="Search posts"
+        sx={{
+          mb: 2,
+          width: "100%",
+          bgcolor: "white",
+        }}
+        onChange={(e) => handleSearch(e.target.value)}
+      />
       <Typography
         variant={isMobile ? "h6" : "h5"}
         sx={{
           mb: 2,
-          textAlign: isMobile ? "center" : "left",
+          textAlign: isMobile ? "center" : "right",
           color: "black",
         }}
       >
