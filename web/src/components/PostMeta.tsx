@@ -1,12 +1,21 @@
-import React, { useState, useEffect } from "react";
 import {
   Box,
-  TextField,
   Button,
-  DialogTitle,
-  DialogContent,
   DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormHelperText,
+  InputLabel,
+  MenuItem,
+  Select,
+  TextField,
+  SelectChangeEvent,
 } from "@mui/material";
+import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFnsV3";
+import { format, isValid } from "date-fns";
+import React, { useEffect, useState } from "react";
 
 interface FormData {
   title: string;
@@ -107,7 +116,11 @@ const PostMeta: React.FC<PostMetaProps> = ({
     return "";
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (
+    e:
+      | React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+      | SelectChangeEvent
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -119,6 +132,22 @@ const PostMeta: React.FC<PostMetaProps> = ({
       ...prev,
       [name]: error,
     }));
+  };
+
+  const handleDateChange = (date: Date | null) => {
+    if (date && isValid(date)) {
+      const formattedDate = format(date, "yyyy-MM-dd");
+      setFormData((prev) => ({
+        ...prev,
+        published: formattedDate,
+      }));
+
+      const error = validateField("published", formattedDate);
+      setErrors((prev) => ({
+        ...prev,
+        published: error,
+      }));
+    }
   };
 
   const handleSubmit = () => {
@@ -148,6 +177,7 @@ const PostMeta: React.FC<PostMetaProps> = ({
           component="form"
           sx={{
             "& .MuiTextField-root": { m: 1, width: "100%" },
+            "& .MuiFormControl-root": { m: 1, width: "100%" },
             maxWidth: 600,
             mx: "auto",
             p: 2,
@@ -160,16 +190,23 @@ const PostMeta: React.FC<PostMetaProps> = ({
             onChange={handleChange}
             error={!!errors.title}
             helperText={errors.title || "Must be wrapped in double quotes"}
+            fullWidth
           />
 
-          <TextField
-            name="published"
-            label="Published Date"
-            value={formData.published}
-            onChange={handleChange}
-            error={!!errors.published}
-            helperText={errors.published || "Format: YYYY-MM-DD"}
-          />
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              label="Published Date"
+              value={formData.published ? new Date(formData.published) : null}
+              onChange={handleDateChange}
+              slotProps={{
+                textField: {
+                  error: !!errors.published,
+                  helperText: errors.published || "Select a date",
+                  sx: { width: "100%" },
+                },
+              }}
+            />
+          </LocalizationProvider>
 
           <TextField
             name="description"
@@ -180,6 +217,7 @@ const PostMeta: React.FC<PostMetaProps> = ({
             helperText={
               errors.description || "Must be wrapped in single or double quotes"
             }
+            fullWidth
           />
 
           <TextField
@@ -191,6 +229,7 @@ const PostMeta: React.FC<PostMetaProps> = ({
             helperText={
               errors.image || "Must be a valid HTTPS URL in double quotes"
             }
+            fullWidth
           />
 
           <TextField
@@ -200,6 +239,7 @@ const PostMeta: React.FC<PostMetaProps> = ({
             onChange={handleChange}
             error={!!errors.tags}
             helperText={errors.tags || 'Enter as array, e.g., ["tag1", "tag2"]'}
+            fullWidth
           />
 
           <TextField
@@ -211,25 +251,37 @@ const PostMeta: React.FC<PostMetaProps> = ({
             helperText={
               errors.category || "Must be wrapped in single or double quotes"
             }
+            fullWidth
           />
 
-          <TextField
-            name="draft"
-            label="Draft"
-            value={formData.draft}
-            onChange={handleChange}
-            error={!!errors.draft}
-            helperText={errors.draft || "Enter true or false"}
-          />
+          <FormControl fullWidth error={!!errors.draft}>
+            <InputLabel>Draft</InputLabel>
+            <Select
+              name="draft"
+              value={formData.draft}
+              label="Draft"
+              onChange={handleChange}
+            >
+              <MenuItem value="false">False</MenuItem>
+              <MenuItem value="true">True</MenuItem>
+            </Select>
+            {errors.draft && <FormHelperText>{errors.draft}</FormHelperText>}
+          </FormControl>
 
-          <TextField
-            name="lang"
-            label="Language"
-            value={formData.lang}
-            onChange={handleChange}
-            error={!!errors.lang}
-            helperText={errors.lang || "Enter 'en', 'vi', or 'jp'"}
-          />
+          <FormControl fullWidth error={!!errors.lang}>
+            <InputLabel>Language</InputLabel>
+            <Select
+              name="lang"
+              value={formData.lang}
+              label="Language"
+              onChange={handleChange}
+            >
+              <MenuItem value="en">English</MenuItem>
+              <MenuItem value="vi">Vietnamese</MenuItem>
+              <MenuItem value="jp">Japanese</MenuItem>
+            </Select>
+            {errors.lang && <FormHelperText>{errors.lang}</FormHelperText>}
+          </FormControl>
         </Box>
       </DialogContent>
       <DialogActions>
