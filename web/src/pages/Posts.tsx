@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -12,19 +13,17 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Typography,
   useMediaQuery,
   useTheme,
-  CircularProgress,
-  InputAdornment,
 } from "@mui/material";
 import axios from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import LoadingComponent from "../components/LoadingComponent";
-import { PostDetail, PostList } from "../types/post.type";
 import { githubApi } from "../api";
+import LoadingComponent from "../components/LoadingComponent";
+import SearchPost from "../components/SearchPost";
+import { PostDetail, PostList } from "../types/post.type";
 
 // Cache for markdown content
 const markdownCache = new Map<string, string>();
@@ -298,22 +297,7 @@ const Posts = () => {
         overflowX: "auto",
       }}
     >
-      <TextField
-        placeholder="Search posts"
-        sx={{
-          mb: 2,
-          width: "100%",
-          bgcolor: "white",
-        }}
-        onChange={(e) => handleSearch(e.target.value)}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              {isSearching && <CircularProgress size={20} />}
-            </InputAdornment>
-          ),
-        }}
-      />
+      <SearchPost handleSearch={handleSearch} isSearching={isSearching} />
       <Typography
         variant={isMobile ? "h6" : "h5"}
         sx={{
