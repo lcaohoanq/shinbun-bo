@@ -17,14 +17,14 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import { Base64 } from "js-base64";
 import { marked, MarkedOptions } from "marked";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { githubApi } from "../api";
 import NavigateButton from "../components/NavigateButton";
+import PostMeta from "../components/PostMeta";
 import { defaultMarkdown } from "../contents/example";
 import { GITHUB_TOKEN } from "../environments/utils";
 import { PostContent, PostMetaData } from "../types/post.type";
-import PostMeta from "../components/PostMeta";
 
 interface ExtendedMarkedOptions extends MarkedOptions {
   highlight?: (code: string, lang: string) => string;
@@ -54,47 +54,6 @@ const MarkdownPreview = () => {
     draft: "",
     lang: "",
   });
-  const inputRef = useRef(null);
-  const previewRef = useRef(null);
-  const isTyping = useRef(false); // New flag to prevent scroll during typing
-
-  const handleScroll = (
-    sourceRef: React.RefObject<HTMLElement>,
-    targetRef: React.RefObject<HTMLElement>
-  ) => {
-    if (isTyping.current) return; // Prevent syncing scroll during typing
-
-    const sourceScrollElement =
-      sourceRef.current?.querySelector("textarea") || sourceRef.current;
-    const targetScrollElement = targetRef.current;
-
-    if (sourceScrollElement && targetScrollElement) {
-      const sourceScrollTop = sourceScrollElement.scrollTop;
-      const sourceScrollHeight = sourceScrollElement.scrollHeight;
-      const sourceClientHeight = sourceScrollElement.clientHeight;
-
-      const targetScrollHeight = targetScrollElement.scrollHeight;
-      const targetClientHeight = targetScrollElement.clientHeight;
-
-      if (
-        sourceScrollTop > 0 &&
-        sourceScrollTop < sourceScrollHeight - sourceClientHeight
-      ) {
-        const scrollPercentage =
-          sourceScrollTop / (sourceScrollHeight - sourceClientHeight);
-
-        targetScrollElement.scrollTop =
-          scrollPercentage * (targetScrollHeight - targetClientHeight);
-      }
-    }
-  };
-
-  const syncScrollOnInput = () => {
-    isTyping.current = true;
-    setTimeout(() => {
-      isTyping.current = false; // Allow scroll sync after typing is done
-    }, 100);
-  };
 
   const {
     markdown: initialMarkdown = defaultMarkdown,
@@ -137,6 +96,8 @@ lang: ${data.lang}
       });
 
       setMetaData(meta as PostMetaData);
+
+      console.log("Meta data extract", meta);
     }
   };
 
@@ -239,7 +200,7 @@ lang: ${data.lang}
         <Box className="flex gap-3 mb-3">
           <TextField
             fullWidth
-            label="Post Title"
+            label="File name (without .md)"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             variant="outlined"
@@ -250,14 +211,17 @@ lang: ${data.lang}
             color="warning"
             onClick={() => setIsMetaOpen(true)}
           >
-            Post Meta
+            Meta
           </Button>
           <Button
             variant="contained"
             color="primary"
             style={{ float: "right" }}
             onClick={handleUpload}
-            disabled={uploadPostMutation.isPending}
+            disabled={
+              Object.values(metaData).every((value) => value === "") ||
+              uploadPostMutation.isPending
+            }
           >
             {uploadPostMutation.isPending ? "Uploading..." : "Upload"}
           </Button>
@@ -275,20 +239,17 @@ lang: ${data.lang}
           />
         </Dialog>
         <Grid container spacing={4}>
-          <Grid item xs={12} md={6}>
+          <Grid item xs={12} md={12} lg={12}>
             <Paper elevation={3} className="h-full">
               <Typography variant="h6" className="p-4 bg-gray-100 border-b">
                 Markdown Input
               </Typography>
               <TextField
-                inputRef={inputRef}
                 multiline
                 fullWidth
                 variant="outlined"
                 value={markdown}
                 onChange={(e) => setMarkdown(e.target.value)}
-                onKeyDown={syncScrollOnInput} // Track typing events
-                onScroll={() => handleScroll(inputRef, previewRef)} // Sync scroll manually
                 className="h-[calc(100vh-250px)]"
                 InputProps={{
                   className: "h-full",
@@ -299,19 +260,6 @@ lang: ${data.lang}
                     },
                   },
                 }}
-              />
-            </Paper>
-          </Grid>
-
-          <Grid item xs={12} md={6}>
-            <Paper elevation={3} className="h-full">
-              <Typography variant="h6" className="p-4 bg-gray-100 border-b">
-                Preview
-              </Typography>
-              <div
-                ref={previewRef}
-                className="markdown-body p-4 h-[calc(100vh-250px)] overflow-y-auto"
-                dangerouslySetInnerHTML={{ __html: marked(markdown) }}
               />
             </Paper>
           </Grid>
