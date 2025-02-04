@@ -17,31 +17,30 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import axios from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { githubApi } from "../api";
+import { getPostContent, githubApi } from "../api";
 import LoadingComponent from "../components/LoadingComponent";
 import SearchPost from "../components/SearchPost";
 import { PostDetail, PostList } from "../types/post.type";
 
 // Cache for markdown content
-const markdownCache = new Map<string, string>();
+const contentCache = new Map<string, string>();
 
 // Interface for post with timestamp
-interface PostWithTimestamp extends PostDetail {
+interface PostExtend extends PostDetail {
   createdAt: string;
+  draft: boolean;
+  content?: string;
 }
 
 const Posts = () => {
-  const [postList, setPostList] = useState<PostWithTimestamp[]>([]);
+  const [postList, setPostList] = useState<PostExtend[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<PostWithTimestamp | null>(
-    null
-  );
-  const [originalPosts, setOriginalPosts] = useState<PostWithTimestamp[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState<PostExtend | null>(null);
+  const [originalPosts, setOriginalPosts] = useState<PostExtend[]>([]);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -49,27 +48,39 @@ const Posts = () => {
   // Memoize the base URL for post viewing
   const baseViewUrl = useMemo(() => "https://shinbun.vercel.app/posts/", []);
 
-  const getPostWithTimestamp = async (
-    post: PostDetail
-  ): Promise<PostWithTimestamp> => {
+  const getPostExtendProps = async (post: PostDetail): Promise<PostExtend> => {
     try {
-      const response = await githubApi.get(`/commits`, {
-        params: {
-          path: `src/content/posts/${post.name}`,
-          per_page: 1,
-        },
-      });
+      const [commitResponse, content] = await Promise.all([
+        githubApi.get(`/commits`, {
+          params: {
+            path: `src/content/posts/${post.name}`,
+            per_page: 1,
+          },
+        }),
+        getPostContent(post.name),
+      ]);
+
+      // Cache the content
+      contentCache.set(post.name, content);
+
+      const frontMatter = content.split("---")[1];
+      const draftMatch = frontMatter.match(/draft:\s*(true|false)/);
+      const draft = draftMatch ? draftMatch[1] === "true" : false;
 
       return {
         ...post,
         createdAt:
-          response.data[0]?.commit?.author?.date || new Date().toISOString(),
+          commitResponse.data[0]?.commit?.author?.date ||
+          new Date().toISOString(),
+        draft,
+        content, // Store content in the post object
       };
     } catch (err) {
-      console.error(`Failed to fetch commit history for ${post.name}`, err);
+      console.error(`Failed to fetch data for ${post.name}`, err);
       return {
         ...post,
         createdAt: new Date().toISOString(),
+        draft: false,
       };
     }
   };
@@ -84,7 +95,7 @@ const Posts = () => {
       if (response.status === 200) {
         // Fetch commit history for each post
         const postsWithTimestamps = await Promise.all(
-          response.data.map((post) => getPostWithTimestamp(post))
+          response.data.map((post) => getPostExtendProps(post))
         );
 
         // Sort by creation time in descending order
@@ -129,7 +140,7 @@ const Posts = () => {
           prev.filter((post) => post.sha !== confirmDelete.sha)
         );
         // Clear cache for deleted post
-        markdownCache.delete(confirmDelete.name);
+        contentCache.delete(confirmDelete.name);
       }
     } catch (err) {
       const errorMessage =
@@ -142,29 +153,17 @@ const Posts = () => {
   }, [confirmDelete]);
 
   const handleEditPost = useCallback(
-    async (post: PostWithTimestamp) => {
+    (post: PostExtend) => {
       try {
         setError(null);
+        const cachedContent = contentCache.get(post.name);
 
-        // Check cache first
-        let markdownContent = markdownCache.get(post.name) as string;
-
-        if (!markdownContent) {
-          const response = await axios.get(
-            `https://raw.githubusercontent.com/lcaohoanq/shinbun/main/src/content/posts/${post.name}`
-          );
-
-          if (response.status === 200) {
-            markdownContent = response.data;
-            // Cache the content
-            markdownCache.set(post.name, markdownContent);
-          }
-        }
-
-        if (markdownContent) {
+        if (cachedContent) {
           navigate(`/posts/${post.name.slice(0, -3)}`, {
-            state: { markdown: markdownContent },
+            state: { markdown: cachedContent },
           });
+        } else {
+          console.error(`No cached content found for ${post.name}`);
         }
       } catch (err) {
         const errorMessage =
@@ -200,7 +199,7 @@ const Posts = () => {
 
   // Memoize post actions renderer to prevent unnecessary re-renders
   const renderPostActions = useCallback(
-    (post: PostWithTimestamp) => {
+    (post: PostExtend) => {
       const postNameWithoutExt = post.name.slice(0, -3);
       const isMarkdown = post.name.includes(".md");
 
@@ -354,6 +353,9 @@ const Posts = () => {
                       <strong>Name</strong>
                     </TableCell>
                     <TableCell>
+                      <strong>Is Draft</strong>
+                    </TableCell>
+                    <TableCell>
                       <strong>Last Updated</strong>
                     </TableCell>
                     <TableCell align="center">
@@ -384,6 +386,15 @@ const Posts = () => {
                         >
                           {post.name}
                         </a>
+                      </TableCell>
+                      <TableCell
+                        sx={
+                          post.draft
+                            ? { fontWeight: "bold", color: "error.main" }
+                            : { fontWeight: "bold", color: "success.main" }
+                        }
+                      >
+                        {post.draft ? "Yes" : "No"}
                       </TableCell>
                       <TableCell>
                         {new Date(post.createdAt).toLocaleDateString()}
