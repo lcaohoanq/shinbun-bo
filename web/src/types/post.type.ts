@@ -29,4 +29,15 @@ export type PostContent = {
   url: string;
 };
 
+export type PostMetaData = {
+  title: string;
+  published: string;
+  description: string;
+  image: string;
+  tags: string;
+  category: string;
+  draft: string;
+  lang: string;
+};
+
 export type PostList = PostDetail[];

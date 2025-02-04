@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Container,
+  Dialog,
   Grid,
   IconButton,
   Paper,
@@ -22,7 +23,8 @@ import { githubApi } from "../api";
 import NavigateButton from "../components/NavigateButton";
 import { defaultMarkdown } from "../contents/example";
 import { GITHUB_TOKEN } from "../environments/utils";
-import { PostContent } from "../types/post.type";
+import { PostContent, PostMetaData } from "../types/post.type";
+import PostMeta from "../components/PostMeta";
 
 interface ExtendedMarkedOptions extends MarkedOptions {
   highlight?: (code: string, lang: string) => string;
@@ -41,7 +43,17 @@ const MarkdownPreview = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [postContent, setPostContent] = useState<PostContent>();
-
+  const [isMetaOpen, setIsMetaOpen] = useState(false);
+  const [metaData, setMetaData] = useState<PostMetaData>({
+    title: "",
+    published: "",
+    description: "",
+    image: "",
+    tags: "",
+    category: "",
+    draft: "",
+    lang: "",
+  });
   const inputRef = useRef(null);
   const previewRef = useRef(null);
   const isTyping = useRef(false); // New flag to prevent scroll during typing
@@ -93,6 +105,41 @@ const MarkdownPreview = () => {
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [title, setTitle] = useState<string>(initialTitle);
 
+  const handleMetaSubmit = (data: PostMetaData) => {
+    setMetaData(data);
+    const frontMatter = `---
+title: ${data.title}
+published: ${data.published}
+description: ${data.description}
+image: ${data.image}
+tags: ${data.tags}
+category: ${data.category}
+draft: ${data.draft}
+lang: ${data.lang}
+---\n\n`;
+
+    setMarkdown(frontMatter + markdown.replace(/---[\s\S]*?---\n\n/, ""));
+    setIsMetaOpen(false);
+  };
+
+  const extractMetaData = (content: string) => {
+    const frontMatterMatch = content.match(/---\n([\s\S]*?)\n---/);
+    if (frontMatterMatch) {
+      const frontMatter = frontMatterMatch[1];
+      const meta: Partial<PostMetaData> = {};
+
+      frontMatter.split("\n").forEach((line) => {
+        const [key, ...values] = line.split(":");
+        const value = values.join(":").trim();
+        if (key && value) {
+          meta[key.trim() as keyof PostMetaData] = value;
+        }
+      });
+
+      setMetaData(meta as PostMetaData);
+    }
+  };
+
   const getPostMeta = async () => {
     if (postTitle === "new") return;
 
@@ -113,6 +160,12 @@ const MarkdownPreview = () => {
     }
     getPostMeta();
   }, [initialTitle]);
+
+  useEffect(() => {
+    if (markdown) {
+      extractMetaData(markdown);
+    }
+  }, []);
 
   marked.setOptions(options);
 
@@ -194,6 +247,13 @@ const MarkdownPreview = () => {
           />
           <Button
             variant="contained"
+            color="warning"
+            onClick={() => setIsMetaOpen(true)}
+          >
+            Post Meta
+          </Button>
+          <Button
+            variant="contained"
             color="primary"
             style={{ float: "right" }}
             onClick={handleUpload}
@@ -202,7 +262,18 @@ const MarkdownPreview = () => {
             {uploadPostMutation.isPending ? "Uploading..." : "Upload"}
           </Button>
         </Box>
-
+        <Dialog
+          open={isMetaOpen}
+          onClose={() => setIsMetaOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <PostMeta
+            initialData={metaData}
+            onSubmit={handleMetaSubmit}
+            onCancel={() => setIsMetaOpen(false)}
+          />
+        </Dialog>
         <Grid container spacing={4}>
           <Grid item xs={12} md={6}>
             <Paper elevation={3} className="h-full">
