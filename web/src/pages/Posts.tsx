@@ -16,6 +16,8 @@ import {
   Typography,
   useMediaQuery,
   useTheme,
+  CircularProgress,
+  InputAdornment,
 } from "@mui/material";
 import axios from "axios";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -27,11 +29,20 @@ import { githubApi } from "../api";
 // Cache for markdown content
 const markdownCache = new Map<string, string>();
 
+// Interface for post with timestamp
+interface PostWithTimestamp extends PostDetail {
+  createdAt: string;
+}
+
 const Posts = () => {
-  const [postList, setPostList] = useState<PostList>([]);
+  const [postList, setPostList] = useState<PostWithTimestamp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<PostDetail | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<PostWithTimestamp | null>(
+    null
+  );
+  const [originalPosts, setOriginalPosts] = useState<PostWithTimestamp[]>([]);
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -39,14 +50,52 @@ const Posts = () => {
   // Memoize the base URL for post viewing
   const baseViewUrl = useMemo(() => "https://shinbun.vercel.app/posts/", []);
 
+  const getPostWithTimestamp = async (
+    post: PostDetail
+  ): Promise<PostWithTimestamp> => {
+    try {
+      const response = await githubApi.get(`/commits`, {
+        params: {
+          path: `src/content/posts/${post.name}`,
+          per_page: 1,
+        },
+      });
+
+      return {
+        ...post,
+        createdAt:
+          response.data[0]?.commit?.author?.date || new Date().toISOString(),
+      };
+    } catch (err) {
+      console.error(`Failed to fetch commit history for ${post.name}`, err);
+      return {
+        ...post,
+        createdAt: new Date().toISOString(),
+      };
+    }
+  };
+
   const getPostList = useCallback(async () => {
     try {
       setError(null);
       const response = await githubApi.get<PostList>(
         "/contents/src/content/posts"
       );
+
       if (response.status === 200) {
-        setPostList(response.data);
+        // Fetch commit history for each post
+        const postsWithTimestamps = await Promise.all(
+          response.data.map((post) => getPostWithTimestamp(post))
+        );
+
+        // Sort by creation time in descending order
+        const sortedPosts = postsWithTimestamps.sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        setPostList(sortedPosts);
+        setOriginalPosts(sortedPosts);
       }
     } catch (err) {
       const errorMessage =
@@ -77,6 +126,9 @@ const Posts = () => {
         setPostList((prev) =>
           prev.filter((post) => post.sha !== confirmDelete.sha)
         );
+        setOriginalPosts((prev) =>
+          prev.filter((post) => post.sha !== confirmDelete.sha)
+        );
         // Clear cache for deleted post
         markdownCache.delete(confirmDelete.name);
       }
@@ -91,7 +143,7 @@ const Posts = () => {
   }, [confirmDelete]);
 
   const handleEditPost = useCallback(
-    async (post: PostDetail) => {
+    async (post: PostWithTimestamp) => {
       try {
         setError(null);
 
@@ -126,23 +178,30 @@ const Posts = () => {
   );
 
   const handleSearch = useCallback(
-    (searchTerm: string) => {
-      if (!searchTerm) {
-        getPostList();
-        return;
-      }
+    async (searchTerm: string) => {
+      setIsSearching(true);
+      try {
+        // Simulate a small delay to show loading effect
+        await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const filteredPosts = postList.filter((post) =>
-        post.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setPostList(filteredPosts);
+        if (!searchTerm.trim()) {
+          setPostList(originalPosts);
+        } else {
+          const filteredPosts = originalPosts.filter((post) =>
+            post.name.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+          setPostList(filteredPosts);
+        }
+      } finally {
+        setIsSearching(false);
+      }
     },
-    [getPostList, postList]
+    [originalPosts]
   );
 
   // Memoize post actions renderer to prevent unnecessary re-renders
   const renderPostActions = useCallback(
-    (post: PostDetail) => {
+    (post: PostWithTimestamp) => {
       const postNameWithoutExt = post.name.slice(0, -3);
       const isMarkdown = post.name.includes(".md");
 
@@ -247,6 +306,13 @@ const Posts = () => {
           bgcolor: "white",
         }}
         onChange={(e) => handleSearch(e.target.value)}
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              {isSearching && <CircularProgress size={20} />}
+            </InputAdornment>
+          ),
+        }}
       />
       <Typography
         variant={isMobile ? "h6" : "h5"}
@@ -259,76 +325,93 @@ const Posts = () => {
         Total: {postList?.length} posts
       </Typography>
 
-      {isMobile ? (
-        <Box>
-          {postList.map((post) => (
-            <Paper
-              key={post.sha}
-              sx={{
-                p: 2,
-                mb: 2,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-              }}
-            >
-              <Typography variant="h6">
-                <a
-                  href={post.html_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "#1976d2", textDecoration: "none" }}
-                >
-                  {post.name}
-                </a>
-              </Typography>
-              {renderPostActions(post)}
-            </Paper>
-          ))}
+      {isSearching ? (
+        <Box display="flex" justifyContent="center" my={4}>
+          <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>
-                  <strong>Name</strong>
-                </TableCell>
-                <TableCell align="center">
-                  <strong>View Details</strong>
-                </TableCell>
-                <TableCell>
-                  <strong>Live Edit</strong>
-                </TableCell>
-                <TableCell align="center">
-                  <strong>Actions</strong>
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
+        <>
+          {isMobile ? (
+            <Box>
               {postList.map((post) => (
-                <TableRow key={post.sha}>
-                  <TableCell>
+                <Paper
+                  key={post.sha}
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  <Typography variant="h6">
                     <a
                       href={post.html_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      style={{
-                        color: "#1976d2",
-                        textDecoration: "none",
-                        fontWeight: "bold",
-                        fontSize: "1.5rem",
-                      }}
+                      style={{ color: "#1976d2", textDecoration: "none" }}
                     >
                       {post.name}
                     </a>
-                  </TableCell>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Created: {new Date(post.createdAt).toLocaleDateString()}
+                  </Typography>
                   {renderPostActions(post)}
-                </TableRow>
+                </Paper>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+            </Box>
+          ) : (
+            <TableContainer component={Paper}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>
+                      <strong>Name</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Last Updated</strong>
+                    </TableCell>
+                    <TableCell align="center">
+                      <strong>View Details</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Live Edit</strong>
+                    </TableCell>
+                    <TableCell align="center">
+                      <strong>Actions</strong>
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {postList.map((post) => (
+                    <TableRow key={post.sha}>
+                      <TableCell>
+                        <a
+                          href={post.html_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            color: "#1976d2",
+                            textDecoration: "none",
+                            fontWeight: "bold",
+                            fontSize: "1.5rem",
+                          }}
+                        >
+                          {post.name}
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(post.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      {renderPostActions(post)}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </>
       )}
 
       {/* Confirmation Dialog */}
