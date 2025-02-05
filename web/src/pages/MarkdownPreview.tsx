@@ -58,14 +58,12 @@ const MarkdownPreview = () => {
 
   const {
     markdown: initialMarkdown = defaultMarkdown,
-    directory: initialDirectory = postDirectory || "",
     title: initialTitle = postTitle || "",
     sha: postSha,
   } = location.state || {};
 
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [title, setTitle] = useState<string>(initialTitle);
-  const [directory, setDirectory] = useState<string>(initialDirectory);
 
   const handleMetaSubmit = (data: PostMetaData) => {
     setMetaData(data);
