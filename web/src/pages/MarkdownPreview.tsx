@@ -40,6 +40,7 @@ const options: ExtendedMarkedOptions = {
 
 const MarkdownPreview = () => {
   const { postTitle } = useParams();
+  const { postDirectory } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [postContent, setPostContent] = useState<PostContent>();
@@ -57,12 +58,14 @@ const MarkdownPreview = () => {
 
   const {
     markdown: initialMarkdown = defaultMarkdown,
+    directory: initialDirectory = postDirectory || "",
     title: initialTitle = postTitle || "",
     sha: postSha,
   } = location.state || {};
 
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [title, setTitle] = useState<string>(initialTitle);
+  const [directory, setDirectory] = useState<string>(initialDirectory);
 
   const handleMetaSubmit = (data: PostMetaData) => {
     setMetaData(data);
@@ -106,12 +109,21 @@ lang: ${data.lang}
 
     try {
       const res = await githubApi.get<PostContent>(
-        `/contents/src/content/posts/${postTitle}.md`
+        `/contents/src/content/posts/${postDirectory}/${postTitle}.md`
       );
       setPostContent(res.data);
       return res.data;
     } catch (err) {
       console.log(err);
+      try {
+        const res = await githubApi.get<PostContent>(
+          `/contents/src/content/posts/${postDirectory}/${postTitle}.md`
+        );
+        setPostContent(res.data);
+        return res.data;
+      } catch (dirErr) {
+        console.log(dirErr);
+      }
     }
   };
 
@@ -120,13 +132,10 @@ lang: ${data.lang}
       setTitle(initialTitle);
     }
     getPostMeta();
-  }, [initialTitle]);
-
-  useEffect(() => {
     if (markdown) {
       extractMetaData(markdown);
     }
-  }, []);
+  }, [initialTitle]);
 
   marked.setOptions(options);
 
@@ -140,20 +149,41 @@ lang: ${data.lang}
       markdown: string;
       sha?: string;
     }) => {
-      const res = await githubApi.put(
-        `/contents/src/content/posts/${title}.md`,
-        {
-          message: sha ? `Update post: ${title}` : `Add new post: ${title}`,
-          content: Base64.encode(markdown),
-          sha: postContent?.sha,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${GITHUB_TOKEN}`,
+      // First try to create/update in the post's directory
+      try {
+        const res = await githubApi.put(
+          `/contents/src/content/posts/${title}/${title}.md`,
+          {
+            message: sha ? `Update post: ${title}` : `Add new post: ${title}`,
+            content: Base64.encode(markdown),
+            sha: postContent?.sha,
           },
-        }
-      );
-      return res.data;
+          {
+            headers: {
+              Authorization: `Bearer ${GITHUB_TOKEN}`,
+            },
+          }
+        );
+        return res.data;
+      } catch (err) {
+        console.log(err);
+
+        // If directory doesn't exist, create at root level
+        const res = await githubApi.put(
+          `/contents/src/content/posts/${title}.md`,
+          {
+            message: sha ? `Update post: ${title}` : `Add new post: ${title}`,
+            content: Base64.encode(markdown),
+            sha: postContent?.sha,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${GITHUB_TOKEN}`,
+            },
+          }
+        );
+        return res.data;
+      }
     },
     onSuccess: () => {
       navigate("/dashboard");

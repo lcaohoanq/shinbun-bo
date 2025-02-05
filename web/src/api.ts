@@ -11,7 +11,7 @@ export const githubApi = axios.create({
 export const getPostContent = async (postName: string): Promise<string> => {
   try {
     const response = await axios.get(
-      `https://raw.githubusercontent.com/lcaohoanq/shinbun/main/src/content/posts/${postName}`
+      `https://raw.githubusercontent.com/lcaohoanq/shinbun/refs/heads/main/${postName}`
     );
     return response.data;
   } catch (err) {

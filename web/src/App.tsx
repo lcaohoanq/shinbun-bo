@@ -56,7 +56,7 @@ const App = () => {
         />
 
         <Route
-          path="/posts/:postTitle"
+          path="/posts/:postDirectory/:postTitle"
           element={
             <ProtectedRoute>
               <MarkdownPreview />

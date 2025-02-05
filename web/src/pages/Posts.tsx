@@ -32,6 +32,7 @@ interface PostExtend extends PostDetail {
   createdAt: string;
   draft: boolean;
   content?: string;
+  path: string;
 }
 
 const Posts = () => {
@@ -48,40 +49,64 @@ const Posts = () => {
   // Memoize the base URL for post viewing
   const baseViewUrl = useMemo(() => "https://shinbun.vercel.app/posts/", []);
 
-  const getPostExtendProps = async (post: PostDetail): Promise<PostExtend> => {
+  const getPostExtendProps = async (
+    post: PostDetail
+  ): Promise<PostExtend[]> => {
     try {
+      // If it's a directory, fetch its contents
+      if (post.type === "dir") {
+        const dirResponse = await githubApi.get<PostList>(
+          `/contents/${post.path}`
+        );
+        const dirContents = await Promise.all(
+          dirResponse.data.map((item) => getPostExtendProps(item))
+        );
+        return dirContents.flat();
+      }
+
+      // Only process markdown files
+      if (!post.name.endsWith(".md")) {
+        return [];
+      }
+
       const [commitResponse, content] = await Promise.all([
         githubApi.get(`/commits`, {
           params: {
-            path: `src/content/posts/${post.name}`,
+            path: post.path,
             per_page: 1,
           },
         }),
-        getPostContent(post.name),
+        getPostContent(post.path),
       ]);
 
-      // Cache the content
-      contentCache.set(post.name, content);
+      // Cache the content with the full path
+      contentCache.set(post.path, content);
 
       const frontMatter = content.split("---")[1];
       const draftMatch = frontMatter.match(/draft:\s*(true|false)/);
       const draft = draftMatch ? draftMatch[1] === "true" : false;
 
-      return {
-        ...post,
-        createdAt:
-          commitResponse.data[0]?.commit?.author?.date ||
-          new Date().toISOString(),
-        draft,
-        content, // Store content in the post object
-      };
+      return [
+        {
+          ...post,
+          createdAt:
+            commitResponse.data[0]?.commit?.author?.date ||
+            new Date().toISOString(),
+          draft,
+          content,
+          path: post.path,
+        },
+      ];
     } catch (err) {
       console.error(`Failed to fetch data for ${post.name}`, err);
-      return {
-        ...post,
-        createdAt: new Date().toISOString(),
-        draft: false,
-      };
+      return [
+        {
+          ...post,
+          createdAt: new Date().toISOString(),
+          draft: false,
+          path: post.path,
+        },
+      ];
     }
   };
 
@@ -93,16 +118,18 @@ const Posts = () => {
       );
 
       if (response.status === 200) {
-        // Fetch commit history for each post
-        const postsWithTimestamps = await Promise.all(
-          response.data.map((post) => getPostExtendProps(post))
+        // Process all items, including directories
+        const allPosts = await Promise.all(
+          response.data.map((item) => getPostExtendProps(item))
         );
 
-        // Sort by creation time in descending order
-        const sortedPosts = postsWithTimestamps.sort(
-          (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        // Flatten the array and sort by creation time
+        const sortedPosts = allPosts
+          .flat()
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
 
         setPostList(sortedPosts);
         setOriginalPosts(sortedPosts);
@@ -123,10 +150,10 @@ const Posts = () => {
     try {
       setError(null);
       const response = await githubApi.delete(
-        `/contents/src/content/posts/${confirmDelete.name}`,
+        `/contents/${confirmDelete.path}`,
         {
           data: {
-            message: `Deleting post ${confirmDelete.name.slice(0, -3)}`,
+            message: `Deleting post ${confirmDelete.name}`,
             sha: confirmDelete.sha,
           },
         }
@@ -139,8 +166,7 @@ const Posts = () => {
         setOriginalPosts((prev) =>
           prev.filter((post) => post.sha !== confirmDelete.sha)
         );
-        // Clear cache for deleted post
-        contentCache.delete(confirmDelete.name);
+        contentCache.delete(confirmDelete.path);
       }
     } catch (err) {
       const errorMessage =
@@ -156,14 +182,22 @@ const Posts = () => {
     (post: PostExtend) => {
       try {
         setError(null);
-        const cachedContent = contentCache.get(post.name);
+        const cachedContent = contentCache.get(post.path);
 
         if (cachedContent) {
-          navigate(`/posts/${post.name.slice(0, -3)}`, {
-            state: { markdown: cachedContent },
+          // Extract post name without extension and directory path
+          const postPath = post.path
+            .replace("src/content/posts/", "")
+            .replace(".md", "");
+          navigate(`/posts/${postPath}`, {
+            state: {
+              markdown: cachedContent,
+              title: post.name.replace(".md", ""),
+              path: post.path,
+            },
           });
         } else {
-          console.error(`No cached content found for ${post.name}`);
+          console.error(`No cached content found for ${post.path}`);
         }
       } catch (err) {
         const errorMessage =
@@ -212,7 +246,7 @@ const Posts = () => {
                   fullWidth
                   variant="contained"
                   color="success"
-                  href={`${baseViewUrl}${postNameWithoutExt}`}
+                  href={`${baseViewUrl}${postNameWithoutExt}/${postNameWithoutExt}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -248,7 +282,7 @@ const Posts = () => {
                 <Button
                   variant="contained"
                   color="success"
-                  href={`${baseViewUrl}${postNameWithoutExt}`}
+                  href={`${baseViewUrl}${postNameWithoutExt}/${postNameWithoutExt}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
