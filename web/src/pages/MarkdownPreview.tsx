@@ -5,7 +5,6 @@ import {
   Button,
   Container,
   Dialog,
-  Grid,
   IconButton,
   Paper,
   TextField,
@@ -13,6 +12,7 @@ import {
   Typography,
 } from "@mui/material";
 import { useMutation } from "@tanstack/react-query";
+import { Editable, useEditor } from "@wysimark/react";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import { Base64 } from "js-base64";
@@ -64,6 +64,7 @@ const MarkdownPreview = () => {
 
   const [markdown, setMarkdown] = useState(initialMarkdown);
   const [title, setTitle] = useState<string>(initialTitle);
+  const editor = useEditor({});
 
   const handleMetaSubmit = (data: PostMetaData) => {
     setMetaData(data);
@@ -206,7 +207,7 @@ lang: ${data.lang}
   }, [markdown]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       <AppBar position="static" className="mb-8">
         <Toolbar>
           <NavigateButton to="/dashboard" />
@@ -223,7 +224,6 @@ lang: ${data.lang}
           </IconButton>
         </Toolbar>
       </AppBar>
-
       <Container maxWidth={false} className="mt-8">
         <Box className="flex gap-3 mb-3">
           <TextField
@@ -266,32 +266,12 @@ lang: ${data.lang}
             onCancel={() => setIsMetaOpen(false)}
           />
         </Dialog>
-        <Grid container spacing={4}>
-          <Grid item xs={12} md={12} lg={12}>
-            <Paper elevation={3} className="h-full">
-              <Typography variant="h6" className="p-4 bg-gray-100 border-b">
-                Markdown Input
-              </Typography>
-              <TextField
-                multiline
-                fullWidth
-                variant="outlined"
-                value={markdown}
-                onChange={(e) => setMarkdown(e.target.value)}
-                className="h-[calc(100vh-250px)]"
-                InputProps={{
-                  className: "h-full",
-                  sx: {
-                    "& .MuiInputBase-input": {
-                      height: "100% !important",
-                      overflowY: "auto !important",
-                    },
-                  },
-                }}
-              />
-            </Paper>
-          </Grid>
-        </Grid>
+        <Paper elevation={3} className="h-full mb-5">
+          <Typography variant="h6" className="p-4 bg-gray-100 border-b">
+            Markdown Input
+          </Typography>
+          <Editable editor={editor} value={markdown} onChange={setMarkdown} />
+        </Paper>
       </Container>
     </div>
   );
