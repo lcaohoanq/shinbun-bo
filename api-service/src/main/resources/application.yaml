@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: bo-api-service
+
+springdoc:
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+  api-docs:
+    enabled: true
